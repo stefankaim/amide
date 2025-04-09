@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build AMIDE",
+      "type": "shell",
+      "command": "/mingw64/bin/mingw32-make", //"C:\\msys64\\mingw64\\bin\\mingw32-make.exe",
+      "args": [],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}

@@ -110,6 +110,7 @@ typedef struct tb_roi_analysis_t {
   
 
 static void export_data(tb_roi_analysis_t * tb_roi_analysis, gboolean raw_values);
+static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysis);
 static void export_analyses(const gchar * save_filename, analysis_roi_t * roi_analyses,
 			    gboolean raw_data);
 static gchar * analyses_as_string(analysis_roi_t * roi_analyses);
@@ -127,7 +128,135 @@ static void read_preferences(gboolean * all_data_sets,
 static tb_roi_analysis_t * tb_roi_analysis_free(tb_roi_analysis_t * tb_roi_analysis);
 static tb_roi_analysis_t * tb_roi_analysis_init(void);
 
+/* Export of the Z-Axis statistics of a ROI */
+static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysis) {
+  time_t current_time;
+  analysis_roi_t * temp_analyses = tb_roi_analysis->roi_analyses;
+  analysis_volume_t * volume_analyses;
+  analysis_frame_t * frame_analyses;
+  analysis_gate_t * gate_analyses;
+  GtkWidget * file_chooser;
+  gchar * selected_folder = NULL;
+  gchar * temp_string;
+  gchar * filename = NULL;
+  AmitkPoint location;
+  analysis_element_t * element;
 
+  /* sanity checks */
+  g_return_if_fail(tb_roi_analysis->roi_analyses != NULL);
+
+  /* Better to choose a folder instead of a single file, since this should do a batch export */
+  file_chooser = gtk_file_chooser_dialog_new(_("Export Z-Axis ROI Statistics"),
+                                              GTK_WINDOW(tb_roi_analysis->dialog),
+                                              GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                                              GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+                                              GTK_STOCK_OK, GTK_RESPONSE_ACCEPT,
+  NULL);
+
+  gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(file_chooser), TRUE);
+  amitk_preferences_set_file_chooser_directory(tb_roi_analysis->preferences, file_chooser);
+
+  if (gtk_dialog_run(GTK_DIALOG(file_chooser)) == GTK_RESPONSE_ACCEPT)
+  {
+    selected_folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file_chooser));
+
+    /* Single File per ROI */
+    analysis_roi_t *current = tb_roi_analysis->roi_analyses;
+    while (current != NULL)
+    {
+      const gchar *roi_name = AMITK_OBJECT_NAME(current->roi); // Name the file like the ROI
+      gchar *filepath = g_strdup_printf("%s/%s_zstats.tsv", selected_folder, roi_name);
+
+      g_print("Export ROIs %s to %s\n", roi_name, filepath);
+
+      GHashTable *z_to_values = g_hash_table_new_full(g_double_hash, g_double_equal, g_free, (GDestroyNotify)g_array_free);
+      FILE *file_pointer = fopen(filepath, "w");
+      if (file_pointer)
+      {
+        time(&current_time);
+        fprintf(file_pointer, _("# %s: ROI Z-Axis Analysis File - generated on %s"), PACKAGE, ctime(&current_time));
+        fprintf(file_pointer, "#\n");
+        fprintf(file_pointer, _("# Study:\t%s\n"), AMITK_OBJECT_NAME(current->study));
+        fprintf(file_pointer, "#\n");
+
+        volume_analyses = current->volume_analyses;
+        while (volume_analyses != NULL) {
+
+          //voxel_volume = AMITK_DATA_SET_VOXEL_VOLUME(volume_analyses->data_set); 
+
+          frame_analyses = volume_analyses->frame_analyses;
+          while (frame_analyses != NULL) {
+
+            gate_analyses = frame_analyses->gate_analyses;
+            while (gate_analyses != NULL) {
+              for (guint i=0; i < gate_analyses->data_array->len; i++) {
+                element = g_ptr_array_index(gate_analyses->data_array, i);
+                VOXEL_TO_POINT(element->ds_voxel, AMITK_DATA_SET_VOXEL_SIZE(volume_analyses->data_set),location);
+                location = amitk_space_s2b(AMITK_SPACE(volume_analyses->data_set), location);
+
+                gdouble *z_key = g_malloc(sizeof(gdouble));
+                *z_key = location.z;
+
+                GArray *values = g_hash_table_lookup(z_to_values, z_key);
+
+                if (!values) {
+                    values = g_array_new(FALSE, FALSE, sizeof(gdouble));
+                    g_hash_table_insert(z_to_values, z_key, values);
+                } else {
+                    g_free(z_key);
+                }
+
+                g_array_append_val(values, element->value);
+              }
+              gate_analyses = gate_analyses->next_gate_analysis;
+            }
+            frame_analyses = frame_analyses->next_frame_analysis;
+          }
+          volume_analyses = volume_analyses->next_volume_analysis;
+        }
+
+        fprintf(file_pointer, "Z\tMean\tStdDev\tMin\tMax\tStdErr\n");
+
+        GHashTableIter iter;
+        gpointer key, value;
+        g_hash_table_iter_init(&iter, z_to_values);
+        while (g_hash_table_iter_next(&iter, &key, &value)) {
+          gdouble z = *((gdouble*)key);
+          GArray *arr = (GArray*)value;
+          if (arr->len == 0) continue;
+
+          gdouble sum = 0.0, min = G_MAXDOUBLE, max = G_MINDOUBLE;
+          for (guint i = 0; i < arr->len; ++i) {
+              gdouble v = g_array_index(arr, gdouble, i);
+              sum += v;
+              if (v < min) min = v;
+              if (v > max) max = v;
+          }
+
+          gdouble mean = sum / arr->len;
+          gdouble variance = 0.0;
+          for (guint i = 0; i < arr->len; ++i) {
+              gdouble v = g_array_index(arr, gdouble, i);
+              variance += (v - mean) * (v - mean);
+          }
+
+          gdouble stddev = sqrt(variance / arr->len);
+          gdouble std_err = stddev / sqrt(arr->len);
+
+          fprintf(file_pointer, "%.9f\t%.9f\t%.9f\t%.9f\t%.9f\t%.9f\n", z, mean, stddev, min, max, std_err);
+        }
+        fclose(file_pointer);
+      }
+
+      g_free(filepath);
+      current = current->next_roi_analysis;
+    }
+
+    g_free(selected_folder);
+  }
+
+  gtk_widget_destroy(file_chooser);
+}
 
 /* function to save the generated roi statistics */
 static void export_data(tb_roi_analysis_t * tb_roi_analysis, gboolean raw_data) {  
@@ -436,6 +565,10 @@ static void response_cb (GtkDialog * dialog, gint response_id, gpointer data) {
 
   case AMITK_RESPONSE_SAVE_RAW_AS:
     export_data(tb_roi_analysis, TRUE);
+    break;
+
+  case AMITK_RESPONSE_SAVE_Z_AXIS_STATISTICS:
+    export_roi_stats_grouped_by_slice(tb_roi_analysis);
     break;
 
   case AMITK_RESPONSE_COPY:
@@ -831,6 +964,7 @@ void tb_roi_analysis(AmitkStudy * study, AmitkPreferences * preferences, GtkWind
 							GTK_STOCK_SAVE_AS, AMITK_RESPONSE_SAVE_AS,
 							GTK_STOCK_COPY, AMITK_RESPONSE_COPY,
 							"Save Raw Values", AMITK_RESPONSE_SAVE_RAW_AS,
+              "Z-Axis Analysis", AMITK_RESPONSE_SAVE_Z_AXIS_STATISTICS,
 							GTK_STOCK_HELP, GTK_RESPONSE_HELP,
 							GTK_STOCK_CLOSE, GTK_RESPONSE_CLOSE,
 							NULL);

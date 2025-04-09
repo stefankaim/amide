@@ -1,3 +1,4 @@
+ich glaube ich bin verrückt, wenn ich die datei öffne habe ich diesen text:
 ## Process this file with automake to produce Makefile.in
 
 # The name of the module.
@@ -128,11 +129,13 @@ AM_CPPFLAGS = \
 # Extra options to supply to gtkdoc-fixref
 # FIXXREF_OPTIONS=--extra-dir=../gdk-pixbuf/html
 
-EXTRA_DIST=
-include $(top_srcdir)/gtk-doc.make
+#EXTRA_DIST=
+#include $(top_srcdir)/gtk-doc.make
 
 # Other files to distribute
-EXTRA_DIST += version.xml.in
+#EXTRA_DIST += version.xml.in
+EXTRA_DIST = \
+	version.xml.in
 
 CLEANFILES = \
 	tmpl/* \
@@ -147,4 +150,3 @@ DISTCLEANFILES = \
 	amitk-scan.c \
 	amitk-scan.o \
 	amitk.types
-

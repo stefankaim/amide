@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in.
 
-include $(top_srcdir)/gnome-doc-utils.make
-dist-hook: doc-dist-hook
+# include $(top_srcdir)/gnome-doc-utils.make
+# dist-hook: doc-dist-hook
 
 DOC_MODULE = amide
 DOC_ENTITIES = legal.xml

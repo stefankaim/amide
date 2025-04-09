@@ -12,6 +12,11 @@ COPYING.
 
 Instruction manuals can be found [here.](https://amide.sourceforge.net/documentation.html)
 
+
+AMIDE Fork
+------------------------
+This fork adds the ability to export export the ROI data statistics grouped by Z-axis. It generates a file for each existing ROI in batch. The statistics are mean, standard deviation, min, max and standard-error for each HU at the current Z.
+
 Quick Linux instructions
 ------------------------
 	cd /tmp/

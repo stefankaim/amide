@@ -37,6 +37,7 @@ G_BEGIN_DECLS
 #define AMITK_RESPONSE_COPY 2
 #define AMITK_RESPONSE_SAVE_AS 3
 #define AMITK_RESPONSE_SAVE_RAW_AS 4
+#define AMITK_RESPONSE_SAVE_Z_AXIS_STATISTICS 5
 
 /* defines how many times we want the progress bar to be updated over the course of an action */
 #define AMITK_UPDATE_DIVIDER 40.0 /* must be float point */

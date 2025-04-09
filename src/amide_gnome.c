@@ -338,7 +338,11 @@ gboolean amide_gnome_help_display (const char *file_name, const char *link_id, G
 
   gchar ** help_paths;
   gchar *file=NULL;
-  struct stat help_st;
+#ifdef _WIN32
+    GStatBuf help_st;
+#else
+    struct stat help_st;
+#endif
   gchar *uri=NULL;
   gboolean retval;
   const char    *doc_id = PACKAGE;
