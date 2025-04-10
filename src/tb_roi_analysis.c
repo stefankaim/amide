@@ -128,6 +128,12 @@ static void read_preferences(gboolean * all_data_sets,
 static tb_roi_analysis_t * tb_roi_analysis_free(tb_roi_analysis_t * tb_roi_analysis);
 static tb_roi_analysis_t * tb_roi_analysis_init(void);
 
+static gint g_double_compare(const void *a, const void *b) {
+  gdouble da = *((const gdouble *)a);
+  gdouble db = *((const gdouble *)b);
+  return (da > db) - (da < db);
+}
+
 /* Export of the Z-Axis statistics of a ROI */
 static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysis) {
   time_t current_time;
@@ -181,12 +187,8 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
 
         volume_analyses = current->volume_analyses;
         while (volume_analyses != NULL) {
-
-          //voxel_volume = AMITK_DATA_SET_VOXEL_VOLUME(volume_analyses->data_set); 
-
           frame_analyses = volume_analyses->frame_analyses;
           while (frame_analyses != NULL) {
-
             gate_analyses = frame_analyses->gate_analyses;
             while (gate_analyses != NULL) {
               for (guint i=0; i < gate_analyses->data_array->len; i++) {
@@ -200,10 +202,10 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
                 GArray *values = g_hash_table_lookup(z_to_values, z_key);
 
                 if (!values) {
-                    values = g_array_new(FALSE, FALSE, sizeof(gdouble));
-                    g_hash_table_insert(z_to_values, z_key, values);
+                  values = g_array_new(FALSE, FALSE, sizeof(gdouble));
+                  g_hash_table_insert(z_to_values, z_key, values);
                 } else {
-                    g_free(z_key);
+                  g_free(z_key);
                 }
 
                 g_array_append_val(values, element->value);
@@ -217,7 +219,46 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
 
         fprintf(file_pointer, "Z\tMean\tStdDev\tMin\tMax\tStdErr\n");
 
-        GHashTableIter iter;
+        GList *keys = g_hash_table_get_keys(z_to_values);
+        GArray *z_keys = g_array_new(FALSE, FALSE, sizeof(gdouble));
+
+        for (GList *l = keys; l != NULL; l = l->next) {
+          gdouble z = *((gdouble *)l->data);
+          g_array_append_val(z_keys, z);
+        }
+
+        g_list_free(keys);
+        g_array_sort(z_keys, (GCompareFunc)g_double_compare);
+
+        for (guint i = 0; i < z_keys->len; ++i) {
+          gdouble z = g_array_index(z_keys, gdouble, i);
+          GArray *arr = g_hash_table_lookup(z_to_values, &z);
+          if (!arr || arr->len == 0) continue;
+
+          gdouble sum = 0.0, min = G_MAXDOUBLE, max = G_MINDOUBLE;
+          for (guint j = 0; j < arr->len; ++j) {
+            gdouble v = g_array_index(arr, gdouble, j);
+            sum += v;
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
+
+          gdouble mean = sum / arr->len;
+          gdouble variance = 0.0;
+          for (guint j = 0; j < arr->len; ++j) {
+            gdouble v = g_array_index(arr, gdouble, j);
+            variance += (v - mean) * (v - mean);
+          }
+
+          gdouble stddev = sqrt(variance / arr->len);
+          gdouble std_err = stddev / sqrt(arr->len);
+
+          fprintf(file_pointer, "%.9f\t%.9f\t%.9f\t%.9f\t%.9f\t%.9f\n", z, mean, stddev, min, max, std_err);
+        }
+
+        g_array_free(z_keys, TRUE);
+
+        /*GHashTableIter iter;
         gpointer key, value;
         g_hash_table_iter_init(&iter, z_to_values);
         while (g_hash_table_iter_next(&iter, &key, &value)) {
@@ -244,7 +285,7 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
           gdouble std_err = stddev / sqrt(arr->len);
 
           fprintf(file_pointer, "%.9f\t%.9f\t%.9f\t%.9f\t%.9f\t%.9f\n", z, mean, stddev, min, max, std_err);
-        }
+        }*/
         fclose(file_pointer);
       }
 

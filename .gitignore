@@ -95,3 +95,4 @@ missing
 *.vsix
 .history
 .ionide
+*.exe
