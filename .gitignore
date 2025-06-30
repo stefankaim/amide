@@ -10,8 +10,12 @@ aclocal.m4
 amide_config.h
 config.status
 doc/reference/version.xml
+etc/amide-1.0.6-2.info
+etc/amide-1.0.6-2.iss
 etc/amide-1.0.6-1.info
 etc/amide-1.0.6-1.iss
+etc/amide-1.0.6.info
+etc/amide-1.0.6.iss
 etc/amide.spec
 libtool
 macosx/amide.plist

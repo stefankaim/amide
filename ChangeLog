@@ -1,3 +1,10 @@
+1.0.6.2
+	* Updated z-axis statistics to export csv
+	* Depending on the locale using different separators
+
+1.0.6.1
+	* Added z-axis statistics
+
 1.0.6
 	* fixed dicom sort function to allow slices in gated/dynamic studiesff
 	  that have same location

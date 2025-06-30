@@ -40,8 +40,6 @@
 #include "ui_study.h"
 #include "ui_common.h"
 
-
-
 /* external variables */
 gchar * object_menu_names[] = {
   N_("_Study"),
@@ -167,6 +165,14 @@ static GOptionEntry command_line_entries[] = {
   { NULL }
 };
 
+#ifndef DEBUG
+static void suppress_warnings(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data) {
+  if (log_level == G_LOG_LEVEL_WARNING) {
+    return; // ignore warnings silently
+  }
+  g_log_default_handler(log_domain, log_level, message, user_data);
+}
+#endif
 
 /********************************************* */
 int main (int argc, char *argv []) {
@@ -228,6 +234,10 @@ int main (int argc, char *argv []) {
 
   /* specify my message handler */
   g_log_set_handler (NULL, G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG, amide_log_handler, preferences);
+
+#ifndef DEBUG
+  g_log_set_handler(NULL, G_LOG_LEVEL_WARNING, suppress_warnings, NULL);
+#endif
 
   /* specify the default directory */
   ui_common_set_last_path_used(AMITK_PREFERENCES_DEFAULT_DIRECTORY(preferences));

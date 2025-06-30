@@ -26,6 +26,7 @@
 #include "amide_config.h"
 #include <gtk/gtk.h>
 #include <string.h>
+#include <locale.h>
 
 #include "amide.h"
 #include "amide_gconf.h"
@@ -134,6 +135,22 @@ static gint g_double_compare(const void *a, const void *b) {
   return (da > db) - (da < db);
 }
 
+static void format_double_locale(char *buf, size_t bufsize, double value, char decimalSep) {
+    if (!buf || bufsize < 2) return;
+
+    int written = snprintf(buf, bufsize, "%.9f", value);
+    if (written < 0 || (size_t)written >= bufsize) {
+        buf[0] = '\0'; 
+        return;
+    }
+
+    for (char *p = buf; *p; ++p) {
+        if (*p == '.') {
+            *p = decimalSep;
+        }
+    }
+}
+
 /* Export of the Z-Axis statistics of a ROI */
 static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysis) {
   time_t current_time;
@@ -164,6 +181,21 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
 
   if (gtk_dialog_run(GTK_DIALOG(file_chooser)) == GTK_RESPONSE_ACCEPT)
   {
+    setlocale(LC_ALL, "");
+    struct lconv *loc = localeconv();
+    gchar decimalSep = '.';
+    gchar thousandsSeparator = '.';
+    if (loc && loc->decimal_point && loc->decimal_point[0] != '\0') {
+        decimalSep = loc->decimal_point[0];
+        thousandsSeparator = loc->thousands_sep[0];
+    }
+
+    gchar cellSeparator = ',';
+    if (decimalSep == ',')
+    {
+      cellSeparator = ';';
+    }
+
     selected_folder = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(file_chooser));
 
     /* Single File per ROI */
@@ -171,19 +203,22 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
     while (current != NULL)
     {
       const gchar *roi_name = AMITK_OBJECT_NAME(current->roi); // Name the file like the ROI
-      gchar *filepath = g_strdup_printf("%s/%s_zstats.tsv", selected_folder, roi_name);
+      gchar *filepath = g_strdup_printf("%s/%s_zstats.csv", selected_folder, roi_name);
 
       g_print("Export ROIs %s to %s\n", roi_name, filepath);
 
       GHashTable *z_to_values = g_hash_table_new_full(g_double_hash, g_double_equal, g_free, (GDestroyNotify)g_array_free);
       FILE *file_pointer = fopen(filepath, "w");
+
       if (file_pointer)
       {
         time(&current_time);
-        fprintf(file_pointer, _("# %s: ROI Z-Axis Analysis File - generated on %s"), PACKAGE, ctime(&current_time));
+        fprintf(file_pointer, "# %s: ROI Z-Axis Analysis File - generated on %s", PACKAGE, ctime(&current_time));
         fprintf(file_pointer, "#\n");
-        fprintf(file_pointer, _("# Study:\t%s\n"), AMITK_OBJECT_NAME(current->study));
+        fprintf(file_pointer, "# Study:%c%s\n", cellSeparator, AMITK_OBJECT_NAME(current->study));
+        fprintf(file_pointer, "# Image:%c%s\n", cellSeparator, AMITK_OBJECT_NAME(current->volume_analyses->data_set));
         fprintf(file_pointer, "#\n");
+        fflush(file_pointer);
 
         volume_analyses = current->volume_analyses;
         while (volume_analyses != NULL) {
@@ -217,8 +252,8 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
           volume_analyses = volume_analyses->next_volume_analysis;
         }
 
-        fprintf(file_pointer, "Z\tMean\tStdDev\tMin\tMax\tStdErr\n");
-
+        fprintf(file_pointer, "Z%cMean%cStdDev%cMin%cMax%cStdErr%cVoxelCount\n", cellSeparator, cellSeparator, cellSeparator, cellSeparator, cellSeparator, cellSeparator);
+        fflush(file_pointer);
         GList *keys = g_hash_table_get_keys(z_to_values);
         GArray *z_keys = g_array_new(FALSE, FALSE, sizeof(gdouble));
 
@@ -234,6 +269,7 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
           gdouble z = g_array_index(z_keys, gdouble, i);
           GArray *arr = g_hash_table_lookup(z_to_values, &z);
           if (!arr || arr->len == 0) continue;
+          guint voxelCount = arr->len;
 
           gdouble sum = 0.0, min = G_MAXDOUBLE, max = G_MINDOUBLE;
           for (guint j = 0; j < arr->len; ++j) {
@@ -253,39 +289,19 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
           gdouble stddev = sqrt(variance / arr->len);
           gdouble std_err = stddev / sqrt(arr->len);
 
-          fprintf(file_pointer, "%.9f\t%.9f\t%.9f\t%.9f\t%.9f\t%.9f\n", z, mean, stddev, min, max, std_err);
+          char buf_z[64], buf_mean[64], buf_stddev[64], buf_min[64], buf_max[64], buf_stderr[64];
+
+          format_double_locale(buf_z,       sizeof(buf_z),       z,        decimalSep);
+          format_double_locale(buf_mean,    sizeof(buf_mean),    mean,     decimalSep);
+          format_double_locale(buf_stddev,  sizeof(buf_stddev),  stddev,   decimalSep);
+          format_double_locale(buf_min,     sizeof(buf_min),     min,      decimalSep);
+          format_double_locale(buf_max,     sizeof(buf_max),     max,      decimalSep);
+          format_double_locale(buf_stderr,  sizeof(buf_stderr),  std_err,  decimalSep);
+
+          fprintf(file_pointer, "%s%c%s%c%s%c%s%c%s%c%s%c%d\n", buf_z, cellSeparator, buf_mean, cellSeparator, buf_stddev, cellSeparator, buf_min, cellSeparator, buf_max, cellSeparator, buf_stderr, cellSeparator, voxelCount);
         }
 
         g_array_free(z_keys, TRUE);
-
-        /*GHashTableIter iter;
-        gpointer key, value;
-        g_hash_table_iter_init(&iter, z_to_values);
-        while (g_hash_table_iter_next(&iter, &key, &value)) {
-          gdouble z = *((gdouble*)key);
-          GArray *arr = (GArray*)value;
-          if (arr->len == 0) continue;
-
-          gdouble sum = 0.0, min = G_MAXDOUBLE, max = G_MINDOUBLE;
-          for (guint i = 0; i < arr->len; ++i) {
-              gdouble v = g_array_index(arr, gdouble, i);
-              sum += v;
-              if (v < min) min = v;
-              if (v > max) max = v;
-          }
-
-          gdouble mean = sum / arr->len;
-          gdouble variance = 0.0;
-          for (guint i = 0; i < arr->len; ++i) {
-              gdouble v = g_array_index(arr, gdouble, i);
-              variance += (v - mean) * (v - mean);
-          }
-
-          gdouble stddev = sqrt(variance / arr->len);
-          gdouble std_err = stddev / sqrt(arr->len);
-
-          fprintf(file_pointer, "%.9f\t%.9f\t%.9f\t%.9f\t%.9f\t%.9f\n", z, mean, stddev, min, max, std_err);
-        }*/
         fclose(file_pointer);
       }
 
