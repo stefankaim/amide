@@ -20,7 +20,7 @@ This fork adds the ability to export export the ROI data statistics grouped by Z
 Quick Linux instructions
 ------------------------
 	cd /tmp/
-	git clone --depth=1 https://github.com/ferdymercury/amide
+	git clone --depth=1 https://github.com/stefankaim/amide
 	# If Ubuntu 22:
 	sudo apt install libgnomecanvas2-dev libgconf2-dev libmdc2-dev libvolpack1-dev libavcodec-dev gtk-doc-tools intltool libxml2-dev libgsl-dev libdcmtk-dev
 	# ElseIf Ubuntu 20:
