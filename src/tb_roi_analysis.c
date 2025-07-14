@@ -271,7 +271,7 @@ static void export_roi_stats_grouped_by_slice(tb_roi_analysis_t * tb_roi_analysi
           if (!arr || arr->len == 0) continue;
           guint voxelCount = arr->len;
 
-          gdouble sum = 0.0, min = G_MAXDOUBLE, max = G_MINDOUBLE;
+          gdouble sum = 0.0, min = G_MAXDOUBLE, max = -G_MAXDOUBLE;
           for (guint j = 0; j < arr->len; ++j) {
             gdouble v = g_array_index(arr, gdouble, j);
             sum += v;
