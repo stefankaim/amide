@@ -17,6 +17,11 @@ AMIDE Fork
 ------------------------
 This fork adds the ability to export export the ROI data statistics grouped by Z-axis. It generates a file for each existing ROI in batch. The statistics are mean, standard deviation, min, max and standard-error for each HU at the current Z.
 
+MacOS Permission
+------------------------
+To run the package, AMIDE.app needs to be out of quarantine unsing
+xattr -rd com.apple.quarantine PATH/TO/AMIDE.app
+
 Quick Linux instructions
 ------------------------
 	cd /tmp/
